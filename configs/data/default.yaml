@@ -1,0 +1,3 @@
+audio_column: "audio"
+text_column: "text"
+sampling_rate: 16000
