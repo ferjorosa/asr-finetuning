@@ -17,7 +17,7 @@ from asr_finetuning.training.config import TrainingConfig
 from asr_finetuning.training.module import WhisperModule
 
 
-def run(
+def run_training(
     model_config: ModelConfig,
     training_config: TrainingConfig,
     data_config: DataConfig,

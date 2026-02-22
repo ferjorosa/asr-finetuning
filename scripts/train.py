@@ -11,11 +11,13 @@ from pathlib import Path
 from datasets import Audio, Dataset
 from datasets import load_dataset
 
+from typing import Literal
+
 from asr_finetuning.data.config import DataConfig
 from asr_finetuning.model.config import ModelConfig
 from asr_finetuning.training.config import TrainingConfig
 from asr_finetuning.training.tracking import TrackioLogger
-from asr_finetuning.training.trainer import run as run_training
+from asr_finetuning.training.trainer import run_training
 
 
 def parse_args() -> argparse.Namespace:
@@ -100,7 +102,7 @@ def build_logger(
     model_config: ModelConfig,
     training_config: TrainingConfig,
     data_config: DataConfig,
-):
+) -> TrackioLogger | Literal[False]:
     if args.logger == "none":
         return False
 
