@@ -17,6 +17,8 @@ Precision: TypeAlias = Literal[
 
 Scheduler: TypeAlias = Literal["cosine", "none"]
 
+Optimizer: TypeAlias = Literal["adamw", "adamw_8bit"]
+
 
 @dataclass
 class TrainingConfig:
@@ -27,6 +29,10 @@ class TrainingConfig:
 
     Args:
         precision: Lightning precision string passed to pl.Trainer.
+        optimizer: Optimizer variant. "adamw" uses standard PyTorch AdamW with
+            FP32 states. "adamw_8bit" uses bitsandbytes 8-bit AdamW, which
+            stores momentum states in 8-bit and saves ~190 MB for a 31.5 M
+            LoRA setup (more impactful for full fine-tuning).
         weight_decay: Weight decay for AdamW.
         betas: AdamW beta coefficients (beta1, beta2).
         eps: AdamW epsilon for numerical stability.
@@ -39,6 +45,8 @@ class TrainingConfig:
         gradient_accumulation_steps: Number of gradient accumulation steps.
         num_epochs: Number of training epochs.
         val_every_n_steps: Run validation every N optimizer steps.
+        limit_val_batches: Fraction (0.0-1.0) or number of validation batches to run.
+            Set to 0.0 to disable validation entirely.
         system_metrics_every_n_steps: Frequency for GPU/system metrics and logging.
         save_every_n_steps: Save checkpoint every N optimizer steps.
         output_base_dir: Base directory for outputs and checkpoints.
@@ -50,6 +58,7 @@ class TrainingConfig:
     precision: Precision = "bf16-mixed"
 
     # Optimizer
+    optimizer: Optimizer = "adamw"
     weight_decay: float = 0.01
     betas: tuple[float, float] = (0.9, 0.95)
     eps: float = 1e-8
@@ -68,6 +77,9 @@ class TrainingConfig:
 
     # Validation and logging
     val_every_n_steps: int = 100
+    limit_val_batches: float | int = (
+        1.0  # Fraction or number of val batches; 0.0 disables validation
+    )
     system_metrics_every_n_steps: int = 10
 
     # Checkpointing

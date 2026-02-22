@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytorch_lightning as pl
+import torch
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 
 from asr_finetuning.data.config import DataConfig
@@ -39,8 +40,21 @@ def run_training(
         val_dataset: Pre-loaded validation dataset.
         logger: Lightning logger instance or False to disable logging.
     """
+    # Derive model weight dtype from training precision so weights are loaded
+    # in BF16/FP16 from the start, not FP32 (Lightning's precision= only wraps
+    # the forward pass in autocast — it does not cast the model weights).
+    _precision_to_dtype: dict[str | int, torch.dtype] = {
+        "bf16-mixed": torch.bfloat16,
+        "bf16-true": torch.bfloat16,
+        "16-mixed": torch.float16,
+        16: torch.float16,
+        "32-true": torch.float32,
+        32: torch.float32,
+    }
+    model_dtype = _precision_to_dtype.get(training_config.precision)
+
     # Build model (returns model and processor)
-    model, processor = build_model(model_config)
+    model, processor = build_model(model_config, dtype=model_dtype)
 
     # Create Lightning module
     module = WhisperModule(
@@ -56,6 +70,7 @@ def run_training(
         config=data_config,
         processor=processor,
         batch_size=training_config.batch_size,
+        dtype=model_dtype,  # Cast inputs to match model precision
     )
 
     # Setup callbacks
@@ -64,7 +79,7 @@ def run_training(
         ModelCheckpoint(
             dirpath=run_dir / "checkpoints",
             every_n_train_steps=training_config.save_every_n_steps,
-            save_top_k=3,
+            save_top_k=-1,
             save_last=True,
         ),
         GpuStatsMonitor(log_every_n_steps=training_config.system_metrics_every_n_steps),
@@ -83,6 +98,7 @@ def run_training(
         precision=training_config.precision,
         max_epochs=training_config.num_epochs,
         val_check_interval=val_check_interval,
+        limit_val_batches=training_config.limit_val_batches,
         log_every_n_steps=training_config.system_metrics_every_n_steps,
         accumulate_grad_batches=training_config.gradient_accumulation_steps,
         gradient_clip_val=training_config.grad_clip_norm or None,
