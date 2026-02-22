@@ -25,7 +25,6 @@ class ASRDataModule(pl.LightningDataModule):
         config: Data configuration (column names, sampling rate).
         processor: WhisperProcessor for feature extraction and tokenization.
         batch_size: Batch size for DataLoaders.
-        num_workers: Number of DataLoader worker processes.
     """
 
     def __init__(
@@ -35,13 +34,11 @@ class ASRDataModule(pl.LightningDataModule):
         config: DataConfig,
         processor: Any,
         batch_size: int = 8,
-        num_workers: int = 4,
     ) -> None:
         super().__init__()
         self.config = config
         self.processor = processor
         self.batch_size = batch_size
-        self.num_workers = num_workers
         self._train_dataset = ASRDataset(
             hf_dataset=train_dataset, processor=processor, config=config
         )
@@ -54,7 +51,7 @@ class ASRDataModule(pl.LightningDataModule):
             dataset=self._train_dataset,
             batch_size=self.batch_size,
             collate_fn=DataCollatorSpeechSeq2SeqWithPadding(processor=self.processor),
-            num_workers=self.num_workers,
+            num_workers=self.config.num_workers,
             shuffle=True,
         )
 
@@ -63,6 +60,6 @@ class ASRDataModule(pl.LightningDataModule):
             dataset=self._val_dataset,
             batch_size=self.batch_size,
             collate_fn=DataCollatorSpeechSeq2SeqWithPadding(processor=self.processor),
-            num_workers=self.num_workers,
+            num_workers=self.config.num_workers,
             shuffle=False,
         )
