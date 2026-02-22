@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytorch_lightning as pl
+import torch
 from torch.utils.data import DataLoader
 
 from asr_finetuning.data.collator import DataCollatorSpeechSeq2SeqWithPadding
@@ -25,6 +26,7 @@ class ASRDataModule(pl.LightningDataModule):
         config: Data configuration (column names, sampling rate).
         processor: WhisperProcessor for feature extraction and tokenization.
         batch_size: Batch size for DataLoaders.
+        dtype: Target dtype for input_features (e.g. torch.bfloat16 for bf16 training).
     """
 
     def __init__(
@@ -34,11 +36,13 @@ class ASRDataModule(pl.LightningDataModule):
         config: DataConfig,
         processor: Any,
         batch_size: int = 8,
+        dtype: torch.dtype | None = None,
     ) -> None:
         super().__init__()
         self.config = config
         self.processor = processor
         self.batch_size = batch_size
+        self.dtype = dtype
         self._train_dataset = ASRDataset(
             hf_dataset=train_dataset, processor=processor, config=config
         )
@@ -50,7 +54,9 @@ class ASRDataModule(pl.LightningDataModule):
         return DataLoader(
             dataset=self._train_dataset,
             batch_size=self.batch_size,
-            collate_fn=DataCollatorSpeechSeq2SeqWithPadding(processor=self.processor),
+            collate_fn=DataCollatorSpeechSeq2SeqWithPadding(
+                processor=self.processor, dtype=self.dtype
+            ),
             num_workers=self.config.num_workers,
             shuffle=True,
         )
@@ -59,7 +65,9 @@ class ASRDataModule(pl.LightningDataModule):
         return DataLoader(
             dataset=self._val_dataset,
             batch_size=self.batch_size,
-            collate_fn=DataCollatorSpeechSeq2SeqWithPadding(processor=self.processor),
+            collate_fn=DataCollatorSpeechSeq2SeqWithPadding(
+                processor=self.processor, dtype=self.dtype
+            ),
             num_workers=self.config.num_workers,
             shuffle=False,
         )

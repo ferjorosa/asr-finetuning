@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import torch
+
 
 @dataclass
 class DataCollatorSpeechSeq2SeqWithPadding:
@@ -12,9 +14,12 @@ class DataCollatorSpeechSeq2SeqWithPadding:
 
     Args:
         processor: WhisperProcessor containing feature_extractor and tokenizer.
+        dtype: Target dtype for input_features (e.g. torch.bfloat16 for bf16 training).
+            If None, keeps the default FP32 from the feature extractor.
     """
 
     processor: Any
+    dtype: torch.dtype | None = None
 
     def __call__(self, features: list[dict[str, Any]]) -> dict[str, Any]:
         # Pad input features (audio)
@@ -22,6 +27,10 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         batch = self.processor.feature_extractor.pad(
             input_features, return_tensors="pt"
         )
+
+        # Cast input_features to target dtype if specified
+        if self.dtype is not None and "input_features" in batch:
+            batch["input_features"] = batch["input_features"].to(self.dtype)
 
         # Pad labels (text)
         label_features = [{"input_ids": f["labels"]} for f in features]
