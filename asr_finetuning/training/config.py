@@ -6,7 +6,6 @@ from typing import Literal, TypeAlias
 
 import yaml
 
-
 Precision: TypeAlias = Literal[
     32,
     16,
@@ -42,7 +41,7 @@ class TrainingConfig:
         val_every_n_steps: Run validation every N optimizer steps.
         system_metrics_every_n_steps: Frequency for GPU/system metrics and logging.
         save_every_n_steps: Save checkpoint every N optimizer steps.
-        output_dir: Directory for outputs and checkpoints.
+        output_base_dir: Base directory for outputs and checkpoints.
         resume_from_checkpoint: Optional checkpoint path to resume from.
         run_name: Optional run name for logging.
     """
@@ -73,7 +72,7 @@ class TrainingConfig:
 
     # Checkpointing
     save_every_n_steps: int = 500
-    output_dir: str = "outputs"
+    output_base_dir: str = "outputs"
     resume_from_checkpoint: str | None = None
     run_name: str | None = None
 

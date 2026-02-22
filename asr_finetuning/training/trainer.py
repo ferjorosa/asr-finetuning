@@ -23,6 +23,7 @@ def run_training(
     data_config: DataConfig,
     train_dataset: Any,
     val_dataset: Any,
+    run_dir: Path,
     logger: Any = False,
 ) -> None:
     """Run training for an ASR model.
@@ -61,7 +62,7 @@ def run_training(
     callbacks = [
         LearningRateMonitor(logging_interval="step"),
         ModelCheckpoint(
-            dirpath=Path(training_config.output_dir) / "checkpoints",
+            dirpath=run_dir / "checkpoints",
             every_n_train_steps=training_config.save_every_n_steps,
             save_top_k=3,
             save_last=True,
@@ -76,7 +77,7 @@ def run_training(
 
     # Create trainer
     trainer = pl.Trainer(
-        default_root_dir=training_config.output_dir,
+        default_root_dir=str(run_dir),
         accelerator="auto",
         devices="auto",
         precision=training_config.precision,

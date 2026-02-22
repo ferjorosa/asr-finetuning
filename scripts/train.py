@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
+import subprocess
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
-
-from datasets import Audio, Dataset
-from datasets import load_dataset
-
 from typing import Literal
+
+from datasets import Audio, Dataset, load_dataset
 
 from asr_finetuning.data.config import DataConfig
 from asr_finetuning.model.config import ModelConfig
@@ -52,6 +52,25 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def get_git_state() -> dict[str, str | bool]:
+    """Get git SHA and dirty state for tracking."""
+    try:
+        sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        dirty = subprocess.check_output(["git", "status", "--porcelain"], text=True)
+        return {"git_sha": sha, "git_dirty": bool(dirty.strip())}
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return {"git_sha": "unknown", "git_dirty": False}
+
+
+def copy_run_configs(run_dir: Path, args: argparse.Namespace) -> None:
+    """Copy config files to the run directory."""
+    configs_dir = run_dir / "configs"
+    configs_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(args.model_config, configs_dir / Path(args.model_config).name)
+    shutil.copy2(args.training_config, configs_dir / Path(args.training_config).name)
+    shutil.copy2(args.data_config, configs_dir / Path(args.data_config).name)
+
+
 def load_and_split_dataset(
     dataset_name: str,
     data_config: DataConfig,
@@ -90,7 +109,8 @@ def load_and_split_dataset(
     return split["train"], split["test"]
 
 
-def build_trackio_run_name(args: argparse.Namespace) -> str:
+def build_run_name(args: argparse.Namespace) -> str:
+    """Build a run name from config file stems and timestamp."""
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     model_name = Path(args.model_config).stem
     data_name = Path(args.data_config).stem
@@ -98,16 +118,17 @@ def build_trackio_run_name(args: argparse.Namespace) -> str:
 
 
 def build_logger(
-    args: argparse.Namespace,
+    run_name: str,
     model_config: ModelConfig,
     training_config: TrainingConfig,
     data_config: DataConfig,
+    args: argparse.Namespace,
 ) -> TrackioLogger | Literal[False]:
+    """Build the trackio logger with config tracking."""
     if args.logger == "none":
         return False
 
     project = os.getenv("TRACKIO_PROJECT", Path(args.training_config).stem)
-    run_name = training_config.run_name or build_trackio_run_name(args)
     return TrackioLogger(
         project=project,
         name=run_name,
@@ -115,6 +136,12 @@ def build_logger(
             "model_config": asdict(model_config),
             "training_config": asdict(training_config),
             "data_config": asdict(data_config),
+            "config_paths": {
+                "model": args.model_config,
+                "training": args.training_config,
+                "data": args.data_config,
+            },
+            **get_git_state(),
         },
     )
 
@@ -127,16 +154,25 @@ def main() -> None:
     training_config = TrainingConfig.from_yaml(args.training_config)
     data_config = DataConfig.from_yaml(args.data_config)
 
+    # Build run name and directory
+    run_name = training_config.run_name or build_run_name(args)
+    run_dir = Path(training_config.output_base_dir) / run_name
+
+    # Copy config files to run directory
+    copy_run_configs(run_dir, args)
+
     # Load and split dataset
     train_dataset, val_dataset = load_and_split_dataset(
         args.dataset,
         data_config,
     )
+
     logger = build_logger(
-        args=args,
+        run_name=run_name,
         model_config=model_config,
         training_config=training_config,
         data_config=data_config,
+        args=args,
     )
 
     # Run training
@@ -146,6 +182,7 @@ def main() -> None:
         data_config=data_config,
         train_dataset=train_dataset,
         val_dataset=val_dataset,
+        run_dir=run_dir,
         logger=logger,
     )
 
