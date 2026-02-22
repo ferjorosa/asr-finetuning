@@ -1,7 +1,7 @@
 [project]
 name = "asr-finetuning"
 version = "0.1.0"
-description = "Add your description here"
+description = "Repository for ASR finetuning of Whisper models using PyTorch Lightning"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
