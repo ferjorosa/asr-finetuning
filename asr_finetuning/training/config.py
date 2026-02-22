@@ -16,6 +16,8 @@ Precision: TypeAlias = Literal[
     "bf16-true",
 ]
 
+Scheduler: TypeAlias = Literal["cosine", "none"]
+
 
 @dataclass
 class TrainingConfig:
@@ -27,8 +29,13 @@ class TrainingConfig:
     Args:
         precision: Lightning precision string passed to pl.Trainer.
         weight_decay: Weight decay for AdamW.
-        learning_rate: Learning rate for the optimizer.
-        warmup_steps: Number of warmup steps for the learning rate scheduler.
+        betas: AdamW beta coefficients (beta1, beta2).
+        eps: AdamW epsilon for numerical stability.
+        grad_clip_norm: Max gradient norm for clipping. 0 disables clipping.
+        learning_rate: Peak learning rate.
+        warmup_steps: Number of linear warmup optimizer steps.
+        scheduler: LR schedule type ("cosine" or "none").
+        min_lr: Minimum LR at the end of cosine decay. Ignored when scheduler="none".
         batch_size: Batch size per device.
         gradient_accumulation_steps: Number of gradient accumulation steps.
         num_epochs: Number of training epochs.
@@ -41,31 +48,53 @@ class TrainingConfig:
     """
 
     # Precision
-    precision: Precision = "bf16-mixed"
+    precision: Precision
 
-    # Optimizer and training stability
-    weight_decay: float = 0.01
+    # Optimizer
+    weight_decay: float
+    betas: tuple[float, float]
+    eps: float
+    grad_clip_norm: float
 
     # Learning-rate schedule
-    learning_rate: float = 1e-4
-    warmup_steps: int = 5
+    learning_rate: float
+    warmup_steps: int
+    scheduler: Scheduler
+    min_lr: float
 
-    # Tokens, steps, and batching
-    batch_size: int = 8
-    gradient_accumulation_steps: int = 1
-    num_epochs: int = 1
+    # Batching
+    batch_size: int
+    gradient_accumulation_steps: int
+    num_epochs: int
 
     # Validation and logging
-    val_every_n_steps: int = 100
-    system_metrics_every_n_steps: int = 10
+    val_every_n_steps: int
+    system_metrics_every_n_steps: int
 
     # Checkpointing
-    save_every_n_steps: int = 500
-    output_dir: str = "outputs"
-    resume_from_checkpoint: str | None = None
+    save_every_n_steps: int
+    output_dir: str
 
-    # Logging
+    # Optional
+    resume_from_checkpoint: str | None = None
     run_name: str | None = None
+
+    def __post_init__(self) -> None:
+        self.betas = tuple(self.betas)  # YAML loads as list
+        if self.learning_rate <= 0:
+            raise ValueError("learning_rate must be positive")
+        if self.batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+        if self.gradient_accumulation_steps <= 0:
+            raise ValueError("gradient_accumulation_steps must be positive")
+        if self.grad_clip_norm < 0:
+            raise ValueError("grad_clip_norm must be non-negative")
+        if self.min_lr < 0:
+            raise ValueError("min_lr must be non-negative")
+        if self.val_every_n_steps <= 0:
+            raise ValueError("val_every_n_steps must be positive")
+        if self.system_metrics_every_n_steps <= 0:
+            raise ValueError("system_metrics_every_n_steps must be positive")
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "TrainingConfig":

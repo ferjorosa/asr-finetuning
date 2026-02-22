@@ -84,6 +84,7 @@ def run(
         val_check_interval=val_check_interval,
         log_every_n_steps=training_config.system_metrics_every_n_steps,
         accumulate_grad_batches=training_config.gradient_accumulation_steps,
+        gradient_clip_val=training_config.grad_clip_norm or None,
         callbacks=callbacks,
         logger=logger,
     )

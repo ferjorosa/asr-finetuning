@@ -1,12 +1,17 @@
 # Precision
 precision: "bf16-mixed"
 
-# Optimizer and training stability
-weight_decay: 0.001
+# Optimizer
+weight_decay: 0.01
+betas: [0.9, 0.95]
+eps: 1.0e-8
+grad_clip_norm: 1.0
 
 # Learning-rate schedule
 learning_rate: 1.0e-4
-warmup_steps: 5
+warmup_steps: 50
+scheduler: "cosine"
+min_lr: 1.0e-5
 
 # Tokens, steps, and batching
 # effective batch size = batch_size * gradient_accumulation_steps * num_devices

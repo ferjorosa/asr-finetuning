@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 import pytorch_lightning as pl
@@ -10,6 +11,21 @@ from torchmetrics.text import WordErrorRate
 
 from asr_finetuning.training.config import TrainingConfig
 from asr_finetuning.training.utils import decode_batch
+
+
+def _cosine_with_warmup(
+    step: int,
+    warmup_steps: int,
+    total_steps: int,
+    min_lr_ratio: float,
+) -> float:
+    if warmup_steps > 0 and step < warmup_steps:
+        return step / warmup_steps
+    if total_steps <= warmup_steps:
+        return min_lr_ratio
+    progress = (step - warmup_steps) / (total_steps - warmup_steps)
+    cosine = 0.5 * (1.0 + math.cos(math.pi * min(1.0, progress)))
+    return min_lr_ratio + (1.0 - min_lr_ratio) * cosine
 
 
 class WhisperModule(pl.LightningModule):
@@ -65,9 +81,29 @@ class WhisperModule(pl.LightningModule):
         self.log("val_wer", self.val_wer.compute() * 100, prog_bar=True)  # ty: ignore[missing-argument]
         self.val_wer.reset()
 
-    def configure_optimizers(self) -> torch.optim.Optimizer:
-        return torch.optim.AdamW(
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(
             self.parameters(),
             lr=self.config.learning_rate,
             weight_decay=self.config.weight_decay,
+            betas=self.config.betas,
+            eps=self.config.eps,
         )
+        if self.config.scheduler == "none":
+            return optimizer
+
+        total_steps = int(self.trainer.estimated_stepping_batches)
+        min_lr_ratio = self.config.min_lr / self.config.learning_rate
+        scheduler = torch.optim.lr_scheduler.LambdaLR(
+            optimizer,
+            lambda step: _cosine_with_warmup(
+                step, self.config.warmup_steps, total_steps, min_lr_ratio
+            ),
+        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "interval": "step",
+            },
+        }
