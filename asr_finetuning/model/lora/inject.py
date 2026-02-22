@@ -1,15 +1,15 @@
 import torch.nn as nn
 
-from asr_finetuning.model.lora.linear import LoRALinear
 from asr_finetuning.model.lora.layer import LoRALayer
+from asr_finetuning.model.lora.linear import LoRALinear
 
 
 def apply_lora_to_model(
     model: nn.Module,
+    target_modules: list[str],
     rank: int = 64,
     alpha: int = 64,
     dropout: float = 0.0,
-    target_modules: list[str] | None = None,
 ) -> nn.Module:
     """Apply LoRA to specific modules in a model.
 
@@ -19,14 +19,10 @@ def apply_lora_to_model(
         alpha: LoRA scaling factor.
         dropout: Dropout probability for LoRA layers.
         target_modules: List of module names to apply LoRA to.
-            If None, defaults to ["q_proj", "v_proj"].
 
     Returns:
         The model with LoRA applied.
     """
-    if target_modules is None:
-        target_modules = ["q_proj", "v_proj"]
-
     target_count = 0
 
     for name, module in model.named_modules():

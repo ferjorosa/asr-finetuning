@@ -66,10 +66,10 @@ def build_model(
     if model_config.use_lora:
         model = apply_lora_to_model(
             base_model,
+            target_modules=model_config.lora_target_modules,
             rank=model_config.lora_r,
             alpha=model_config.lora_alpha,
             dropout=model_config.lora_dropout,
-            target_modules=model_config.lora_target_modules,
         )
         model = setup_lora_training(model)
         # Cast LoRA parameters to match the base model dtype so both branches
@@ -86,7 +86,7 @@ def build_model(
     if model_config.gradient_checkpointing:
         model.gradient_checkpointing_enable()  # type: ignore[call-non-callable]
         # Whisper loads in eval format by default
-        model.train()  # type: ignore[call-non-callable]
+        model.train()
 
     # -------------------------------------------------------------------------
     # 5. Whisper generation config — required for training
