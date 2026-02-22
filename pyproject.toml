@@ -5,10 +5,13 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "evaluate>=0.4.6",
     "jiwer>=4.0.0",
     "pytorch-lightning>=2.6.1",
     "pyyaml>=6.0.0",
     "torchcodec>=0.10.0",
+    "torchmetrics[text]>=1.8.2",
+    "trackio>=0.16.1",
     "unsloth>=2026.2.1",
 ]
 
