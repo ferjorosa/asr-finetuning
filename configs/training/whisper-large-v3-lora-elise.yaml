@@ -14,9 +14,8 @@ warmup_steps: 50
 scheduler: "cosine"
 min_lr: 1.0e-5
 
-# Tokens, steps, and batching
 # effective batch size = batch_size * gradient_accumulation_steps * num_devices
-batch_size: 16
+batch_size: 96
 gradient_accumulation_steps: 4
 num_epochs: 1
 

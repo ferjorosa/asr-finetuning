@@ -17,7 +17,7 @@ Precision: TypeAlias = Literal[
 
 Scheduler: TypeAlias = Literal["cosine", "none"]
 
-Optimizer: TypeAlias = Literal["adamw", "adamw_8bit"]
+Optimizer: TypeAlias = Literal["adamw"]
 
 
 @dataclass
@@ -29,10 +29,7 @@ class TrainingConfig:
 
     Args:
         precision: Lightning precision string passed to pl.Trainer.
-        optimizer: Optimizer variant. "adamw" uses standard PyTorch AdamW with
-            FP32 states. "adamw_8bit" uses bitsandbytes 8-bit AdamW, which
-            stores momentum states in 8-bit and saves ~190 MB for a 31.5 M
-            LoRA setup (more impactful for full fine-tuning).
+        optimizer: Optimizer variant. "adamw" uses standard PyTorch AdamW.
         weight_decay: Weight decay for AdamW.
         betas: AdamW beta coefficients (beta1, beta2).
         eps: AdamW epsilon for numerical stability.
