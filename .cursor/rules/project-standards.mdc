@@ -3,7 +3,7 @@ description: Minimal always-on standards
 alwaysApply: true
 ---
 
-# tiny-llm always-on rules
+# always-on rules
 
 # Philosophy
 - Follow the Zen of Python: prefer simple, explicit, modular code. No emojis.
