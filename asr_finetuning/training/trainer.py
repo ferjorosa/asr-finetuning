@@ -90,4 +90,6 @@ def run(
     )
 
     # Run training
-    trainer.fit(module, datamodule=data_module)
+    trainer.fit(
+        module, datamodule=data_module, ckpt_path=training_config.resume_from_checkpoint
+    )
