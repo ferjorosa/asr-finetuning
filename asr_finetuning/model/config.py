@@ -13,7 +13,7 @@ class ModelConfig:
     Covers both base model selection and optional LoRA fine-tuning parameters.
 
     Args:
-        model_name: HuggingFace model name or path (e.g. "unsloth/whisper-large-v3").
+        model_name: HuggingFace model name or path (e.g. "openai/whisper-large-v3").
         use_lora: Whether to apply LoRA adapters. If False, full fine-tuning is used.
         lora_r: LoRA rank. Higher = more parameters, more capacity.
         lora_alpha: LoRA alpha scaling factor.
@@ -22,7 +22,6 @@ class ModelConfig:
             - ["q_proj", "v_proj"]
         language: Language name for Whisper (e.g. "English"). Set to None for auto-detection.
         task: Whisper task ("transcribe" or "translate").
-        load_in_4bit: Whether to quantize to 4-bit (reduces memory usage).
     """
 
     # Model
@@ -35,12 +34,12 @@ class ModelConfig:
     lora_dropout: float = 0.0
     lora_target_modules: list[str] = field(default_factory=lambda: ["q_proj", "v_proj"])
 
+    # Training
+    gradient_checkpointing: bool = False
+
     # Whisper
     language: str | None = None  # None = auto-detect language
     task: str = "transcribe"
-
-    # Quantization
-    load_in_4bit: bool = False
 
     def __post_init__(self) -> None:
         if self.lora_r <= 0:
