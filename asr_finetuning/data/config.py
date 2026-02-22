@@ -8,31 +8,28 @@ import yaml
 
 @dataclass
 class DataConfig:
-    """Schema configuration for ASR datasets.
-
-    Describes the structure of examples in the dataset: column names and
-    audio sampling rate.
+    """Schema and split configuration for ASR datasets.
 
     Args:
         audio_column: Name of the column containing audio data.
         text_column: Name of the column containing text transcriptions.
         sampling_rate: Target sampling rate for audio resampling.
+        train_split: Name of the training split in the dataset.
+        val_split: Name of the validation split. If None, a validation set is
+            carved out of the training split using val_split_size.
+        val_split_size: Fraction of training data to use as validation when
+            val_split is None. Ignored if val_split is provided.
     """
 
     audio_column: str = "audio"
     text_column: str = "text"
     sampling_rate: int = 16000
+    train_split: str = "train"
+    val_split: str | None = None
+    val_split_size: float = 0.05
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "DataConfig":
-        """Load config from YAML file.
-
-        Args:
-            path: Path to YAML config file.
-
-        Returns:
-            DataConfig instance.
-        """
         with open(path) as f:
             config = yaml.safe_load(f)
         return cls(**config)

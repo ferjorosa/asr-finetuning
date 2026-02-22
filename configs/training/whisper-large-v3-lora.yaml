@@ -1,0 +1,11 @@
+learning_rate: 1.0e-4
+weight_decay: 0.001
+batch_size: 96
+num_epochs: 1
+warmup_steps: 5
+gradient_accumulation_steps: 4
+precision: "bf16-mixed"
+logging_steps: 1
+eval_steps: 5
+save_steps: 500
+output_dir: "outputs"
