@@ -1,4 +1,7 @@
-model_name: "unsloth/whisper-large-v3"
+# Model
+model_name: "openai/whisper-large-v3"
+
+# LoRA
 use_lora: true
 lora_r: 64
 lora_alpha: 64
@@ -6,6 +9,10 @@ lora_dropout: 0.0
 lora_target_modules:
   - "q_proj"
   - "v_proj"
+
+# Training
+gradient_checkpointing: true # Greatly reduces memory usage
+
+# Whisper
 language: "English"
 task: "transcribe"
-load_in_4bit: false

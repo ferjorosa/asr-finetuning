@@ -1,5 +1,8 @@
+# https://huggingface.co/datasets/MrDragonFox/Elise
+
 audio_column: "audio"
 text_column: "text"
 sampling_rate: 16000
 train_split: "train"
 val_split_size: 0.06
+num_workers: 4

@@ -19,6 +19,7 @@ class DataConfig:
             carved out of the training split using val_split_size.
         val_split_size: Fraction of training data to use as validation when
             val_split is None. Ignored if val_split is provided.
+        num_workers: Number of DataLoader worker processes.
     """
 
     audio_column: str = "audio"
@@ -27,6 +28,7 @@ class DataConfig:
     train_split: str = "train"
     val_split: str | None = None
     val_split_size: float = 0.05
+    num_workers: int = 4
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "DataConfig":

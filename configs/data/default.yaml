@@ -1,6 +1,0 @@
-audio_column: "audio"
-text_column: "text"
-sampling_rate: 16000
-train_split: "train"
-# val_split: "validation"   # uncomment if the dataset has a dedicated val split
-val_split_size: 0.05
