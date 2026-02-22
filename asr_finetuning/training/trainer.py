@@ -40,9 +40,10 @@ def run_training(
         val_dataset: Pre-loaded validation dataset.
         logger: Lightning logger instance or False to disable logging.
     """
-    # Derive model weight dtype from training precision so weights are loaded
-    # in BF16/FP16 from the start, not FP32 (Lightning's precision= only wraps
-    # the forward pass in autocast — it does not cast the model weights).
+    # Derive model dtype from training precision.
+    # The dtype must be passed to BOTH the model (for weights) and data module
+    # (for input features). Lightning's precision in the Trainer only autocasts
+    # the forward pass, it does NOT cast model weights or input data automatically.
     _precision_to_dtype: dict[str | int, torch.dtype] = {
         "bf16-mixed": torch.bfloat16,
         "bf16-true": torch.bfloat16,
