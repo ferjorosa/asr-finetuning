@@ -1,115 +1,106 @@
-"""Model factory for building Whisper models with optional LoRA.
+"""Model factory for building Whisper models.
 
-Uses Unsloth's FastModel for efficient base model loading (handles dtype,
-quantization, and Whisper-specific setup), but standard PEFT for LoRA
-application to ensure full PyTorch Lightning compatibility and correct
-gradient checkpointing behavior.
+Supports:
+- Full fine-tuning (use_lora=False)
+- LoRA from scratch (use_lora=True)
 """
 
 from typing import Any
 
 import torch
-from peft import LoraConfig, get_peft_model
-from transformers import WhisperForConditionalGeneration
-from unsloth import FastModel
+from transformers import (
+    WhisperForConditionalGeneration,
+    WhisperProcessor,
+)
 
 from asr_finetuning.model.config import ModelConfig
+from asr_finetuning.model.lora import apply_lora_to_model, setup_lora_training
+from asr_finetuning.model.lora.layer import LoRALayer
 
 
 def build_model(
-    config: ModelConfig,
+    model_config: ModelConfig,
     dtype: torch.dtype | None = None,
 ) -> tuple[torch.nn.Module, Any]:
     """Build a Whisper model from configuration.
 
-    Handles both LoRA (PEFT) and full fine-tuning paths. Returns the model
+    Handles LoRA and full fine-tuning paths. Returns the model
     and processor ready for training.
 
-    Uses Unsloth for base model loading (dtype handling, quantization,
-    Whisper-specific configuration) but standard HuggingFace PEFT for LoRA
-    to ensure compatibility with PyTorch Lightning's training loop and correct
-    gradient checkpointing behavior.
-
     Args:
-        config: Model configuration with base model name and LoRA parameters.
-        dtype: Model weight dtype. If None, FastModel will auto-detect.
+        model_config: Model configuration with base model name and LoRA parameters.
+        dtype: Model weight dtype. If None, defaults to torch.float32.
 
     Returns:
-        Tuple of (model, processor). The model may be PEFT-wrapped if
-        config.use_lora=True.
+        Tuple of (model, processor). If use_lora=True, only LoRA parameters
+        are trainable.
     """
     print(f"[build_model] dtype={dtype}")
 
     # -------------------------------------------------------------------------
-    # 1. Load base model via Unsloth
-    #    FastModel handles: dtype auto-detection, 4-bit quantization, and
-    #    Whisper-specific tokenizer/processor setup.
-    #    We do NOT use FastModel.get_peft_model — standard PEFT is used instead
-    #    to avoid Unsloth's custom GC patches that conflict with Lightning.
+    # 1. Load processor
     # -------------------------------------------------------------------------
-    base_model, processor = FastModel.from_pretrained(
-        model_name=config.model_name,
-        dtype=dtype,
-        load_in_4bit=config.load_in_4bit,
-        auto_model=WhisperForConditionalGeneration,
-        whisper_language=config.language,
-        whisper_task=config.task,
+    processor = WhisperProcessor.from_pretrained(
+        model_config.model_name,
+        language=model_config.language,
+        task=model_config.task,
+    )
+
+    # -------------------------------------------------------------------------
+    # 2. Load base model
+    # -------------------------------------------------------------------------
+    if dtype is None:
+        dtype = torch.float32
+
+    model_kwargs: dict[str, Any] = {
+        "torch_dtype": dtype,
+        "use_cache": False,
+    }
+
+    base_model = WhisperForConditionalGeneration.from_pretrained(
+        model_config.model_name,
+        **model_kwargs,
     )
 
     _log_dtype_summary(base_model, label="base model")
 
     # -------------------------------------------------------------------------
-    # 2. Enable standard PyTorch gradient checkpointing on the base model
-    #    BEFORE wrapping with PEFT. This uses HuggingFace's standard GC
-    #    implementation which is fully compatible with Lightning.
-    #
-    #    We call this on the base model (not the PEFT wrapper) because PEFT
-    #    wraps the model and calling gradient_checkpointing_enable afterwards
-    #    may not reach the inner model's encoder/decoder correctly.
+    # 3. Apply custom LoRA
     # -------------------------------------------------------------------------
-    base_model.gradient_checkpointing_enable(
-        gradient_checkpointing_kwargs={"use_reentrant": False}
-    )
-    _verify_gradient_checkpointing(base_model, label="base model (after GC enable)")
-
-    # -------------------------------------------------------------------------
-    # 3. Apply LoRA via standard PEFT
-    # -------------------------------------------------------------------------
-    if config.use_lora:
-        lora_config = LoraConfig(
-            r=config.lora_r,
-            target_modules=config.lora_target_modules,
-            lora_alpha=config.lora_alpha,
-            lora_dropout=config.lora_dropout,
-            bias="none",
-            # task_type must be None for Whisper — using TaskType.SEQ_2_SEQ_LM
-            # breaks generation because PEFT wraps the forward in a way that
-            # conflicts with Whisper's encoder-decoder cross-attention setup.
-            task_type=None,
+    if model_config.use_lora:
+        model = apply_lora_to_model(
+            base_model,
+            rank=model_config.lora_r,
+            alpha=model_config.lora_alpha,
+            dropout=model_config.lora_dropout,
+            target_modules=model_config.lora_target_modules,
         )
-        model = get_peft_model(base_model, lora_config)
-        model.print_trainable_parameters()
+        model = setup_lora_training(model)
+        # Cast LoRA parameters to match the base model dtype so both branches
+        # of LoRALinear.forward produce the same dtype and can be added.
+        for module in model.modules():
+            if isinstance(module, LoRALayer):
+                module.to(dtype)
     else:
         model = base_model
 
-    _verify_gradient_checkpointing(model, label="final model (after PEFT wrap)")
-
     # -------------------------------------------------------------------------
-    # 4. Disable KV cache for training
-    #    When use_cache=True (default), Whisper's decoder caches KV states
-    #    which prevents gradient checkpointing from recomputing them during
-    #    the backward pass, defeating memory savings.
+    # 4. Gradient checkpointing
     # -------------------------------------------------------------------------
-    model.config.use_cache = False  # type: ignore[assignment]
+    print(f"[build_model] gradient_checkpointing={model_config.gradient_checkpointing}")
+    if model_config.gradient_checkpointing:
+        print("[build_model] Enabling gradient checkpointing!")
+        model.gradient_checkpointing_enable()  # type: ignore[call-non-callable]
+        model.train()  # type: ignore[call-non-callable]
 
     # -------------------------------------------------------------------------
     # 5. Whisper generation config — required for training
     # -------------------------------------------------------------------------
-    if config.language is not None:
-        model.generation_config.language = f"<|{config.language.lower()}|>"
-    model.generation_config.task = config.task
+    if model_config.language is not None:
+        model.generation_config.language = f"<|{model_config.language.lower()}|>"  # type: ignore[assignment]
+    model.generation_config.task = model_config.task  # type: ignore[assignment]
     model.config.suppress_tokens = []  # type: ignore[assignment]
-    model.generation_config.forced_decoder_ids = None
+    model.generation_config.forced_decoder_ids = None  # type: ignore[assignment]
 
     return model, processor
 
@@ -136,42 +127,8 @@ def _log_dtype_summary(model: torch.nn.Module, label: str = "model") -> None:
         print(f"  {dt}: {count / 1e6:.2f}M params — {mb:.1f} MB")
     print(f"  Total: {total_mb:.1f} MB")
 
-    fp32_params = [n for n, p in model.named_parameters() if p.dtype == torch.float32]
-    if fp32_params:
-        print(f"  WARNING: {len(fp32_params)} params still in FP32!")
-        print(f"  First 5: {fp32_params[:5]}")
+    trainable_params = [n for n, p in model.named_parameters() if p.requires_grad]
+    print(f"  Trainable params: {len(trainable_params)}")
+    if trainable_params:
+        print(f"  First 5 trainable: {trainable_params[:5]}")
     print("[build_model] === End dtype summary ===\n")
-
-
-def _verify_gradient_checkpointing(
-    model: torch.nn.Module, label: str = "model"
-) -> None:
-    """Check and log gradient checkpointing status across encoder and decoder."""
-    print(f"\n[build_model] === GC status: {label} ===")
-
-    # Walk the module tree looking for gradient_checkpointing attributes
-    gc_on: list[str] = []
-    gc_off: list[str] = []
-
-    for name, module in model.named_modules():
-        if hasattr(module, "gradient_checkpointing"):
-            if module.gradient_checkpointing:
-                gc_on.append(name or "<root>")
-            else:
-                gc_off.append(name or "<root>")
-
-    if gc_on:
-        print(f"  GC enabled on {len(gc_on)} module(s):")
-        for n in gc_on[:10]:
-            print(f"    ✓ {n}")
-        if len(gc_on) > 10:
-            print(f"    ... and {len(gc_on) - 10} more")
-    else:
-        print("  WARNING: GC is not enabled on any module!")
-
-    if gc_off:
-        print(f"  GC disabled on {len(gc_off)} module(s) (first 5):")
-        for n in gc_off[:5]:
-            print(f"    ✗ {n}")
-
-    print("[build_model] === End GC status ===\n")

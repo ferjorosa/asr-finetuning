@@ -5,7 +5,6 @@ from __future__ import annotations
 import math
 from typing import Any
 
-import bitsandbytes as bnb
 import pytorch_lightning as pl
 import torch
 from torchmetrics.text import WordErrorRate
@@ -32,12 +31,11 @@ def _cosine_with_warmup(
 class WhisperModule(pl.LightningModule):
     """LightningModule for Whisper ASR fine-tuning.
 
-    Wraps a pre-constructed model (PEFT-wrapped or full) for training with
-    PyTorch Lightning. Model construction is handled by build_model() in
-    the model factory.
+    Wraps a pre-constructed model for training with PyTorch Lightning.
+    Model construction is handled by build_model() in the model factory.
 
     Args:
-        model: The Whisper model (may be PEFT-wrapped).
+        model: The Whisper model (may have LoRA adapters).
         processor: WhisperProcessor for decoding and evaluation.
         config: Training configuration.
     """
@@ -57,9 +55,8 @@ class WhisperModule(pl.LightningModule):
     def forward(
         self, input_features: torch.Tensor, labels: torch.Tensor | None = None
     ) -> Any:
-        # use_cache=False is required for gradient checkpointing to work correctly.
-        # When use_cache=True (default), Whisper's decoder caches KV states which
-        # prevents GC from recomputing them during backward pass, defeating memory savings.
+        # use_cache=False prevents the decoder from caching KV states, which would
+        # otherwise cause issues during training.
         return self.model(input_features=input_features, labels=labels, use_cache=False)
 
     def training_step(
@@ -86,13 +83,8 @@ class WhisperModule(pl.LightningModule):
         self.val_wer.reset()
 
     def configure_optimizers(self):
-        optimizer_cls = (
-            bnb.optim.AdamW8bit
-            if self.config.optimizer == "adamw_8bit"
-            else torch.optim.AdamW
-        )
-        optimizer = optimizer_cls(
-            self.parameters(),
+        optimizer = torch.optim.AdamW(
+            [p for p in self.parameters() if p.requires_grad],
             lr=self.config.learning_rate,
             weight_decay=self.config.weight_decay,
             betas=self.config.betas,
