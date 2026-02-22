@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import os
 from dataclasses import asdict
+from datetime import datetime, timezone
+from pathlib import Path
 
 from datasets import Audio, Dataset
 from datasets import load_dataset
@@ -45,11 +47,6 @@ def parse_args() -> argparse.Namespace:
         default="trackio",
         help="Logger backend to use (default: trackio).",
     )
-    parser.add_argument(
-        "--trackio-project",
-        default=None,
-        help="Trackio project name (defaults to TRACKIO_PROJECT or 'asr-finetuning').",
-    )
     return parser.parse_args()
 
 
@@ -69,6 +66,7 @@ def load_and_split_dataset(
     Returns:
         Tuple of (train_dataset, val_dataset).
     """
+    # We dont use streaming because we are aiming at small datasets (PEFT)
     dataset = load_dataset(dataset_name)
 
     # Cast audio column to target sampling rate
@@ -90,20 +88,27 @@ def load_and_split_dataset(
     return split["train"], split["test"]
 
 
+def build_trackio_run_name(args: argparse.Namespace) -> str:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    model_name = Path(args.model_config).stem
+    data_name = Path(args.data_config).stem
+    return f"{model_name}-{data_name}-{timestamp}"
+
+
 def build_logger(
-    logger_name: str,
+    args: argparse.Namespace,
     model_config: ModelConfig,
     training_config: TrainingConfig,
     data_config: DataConfig,
-    trackio_project: str | None,
 ):
-    if logger_name == "none":
+    if args.logger == "none":
         return False
 
-    project = trackio_project or os.getenv("TRACKIO_PROJECT", "asr-finetuning")
+    project = os.getenv("TRACKIO_PROJECT", Path(args.training_config).stem)
+    run_name = training_config.run_name or build_trackio_run_name(args)
     return TrackioLogger(
         project=project,
-        name=training_config.run_name,
+        name=run_name,
         config={
             "model_config": asdict(model_config),
             "training_config": asdict(training_config),
@@ -126,11 +131,10 @@ def main() -> None:
         data_config,
     )
     logger = build_logger(
-        logger_name=args.logger,
+        args=args,
         model_config=model_config,
         training_config=training_config,
         data_config=data_config,
-        trackio_project=args.trackio_project,
     )
 
     # Run training

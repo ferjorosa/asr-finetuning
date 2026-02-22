@@ -25,36 +25,47 @@ class TrainingConfig:
     Use "bf16-mixed" on modern GPUs (Ampere+), "16-mixed" on older ones.
 
     Args:
-        learning_rate: Learning rate for the optimizer.
-        weight_decay: Weight decay for AdamW.
-        batch_size: Batch size per device.
-        num_epochs: Number of training epochs.
-        warmup_steps: Number of warmup steps for the learning rate scheduler.
-        gradient_accumulation_steps: Number of gradient accumulation steps.
         precision: Lightning precision string passed to pl.Trainer.
-        logging_steps: Log every N optimizer steps.
-        eval_steps: Evaluate every N optimizer steps.
-        save_steps: Save checkpoint every N optimizer steps.
+        weight_decay: Weight decay for AdamW.
+        learning_rate: Learning rate for the optimizer.
+        warmup_steps: Number of warmup steps for the learning rate scheduler.
+        batch_size: Batch size per device.
+        gradient_accumulation_steps: Number of gradient accumulation steps.
+        num_epochs: Number of training epochs.
+        val_every_n_steps: Run validation every N optimizer steps.
+        system_metrics_every_n_steps: Frequency for GPU/system metrics and logging.
+        save_every_n_steps: Save checkpoint every N optimizer steps.
         output_dir: Directory for outputs and checkpoints.
-        run_name: Optional run name for logging.
-        system_metrics_every_n_steps: Frequency for GPU/system metrics callbacks.
         resume_from_checkpoint: Optional checkpoint path to resume from.
+        run_name: Optional run name for logging.
     """
 
-    learning_rate: float = 1e-4
-    weight_decay: float = 0.01
-    batch_size: int = 8
-    num_epochs: int = 1
-    warmup_steps: int = 5
-    gradient_accumulation_steps: int = 1
+    # Precision
     precision: Precision = "bf16-mixed"
-    logging_steps: int = 1
-    eval_steps: int = 100
-    save_steps: int = 500
-    output_dir: str = "outputs"
-    run_name: str | None = None
+
+    # Optimizer and training stability
+    weight_decay: float = 0.01
+
+    # Learning-rate schedule
+    learning_rate: float = 1e-4
+    warmup_steps: int = 5
+
+    # Tokens, steps, and batching
+    batch_size: int = 8
+    gradient_accumulation_steps: int = 1
+    num_epochs: int = 1
+
+    # Validation and logging
+    val_every_n_steps: int = 100
     system_metrics_every_n_steps: int = 10
+
+    # Checkpointing
+    save_every_n_steps: int = 500
+    output_dir: str = "outputs"
     resume_from_checkpoint: str | None = None
+
+    # Logging
+    run_name: str | None = None
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "TrainingConfig":

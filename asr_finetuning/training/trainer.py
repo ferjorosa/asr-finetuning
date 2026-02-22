@@ -62,12 +62,17 @@ def run(
         LearningRateMonitor(logging_interval="step"),
         ModelCheckpoint(
             dirpath=Path(training_config.output_dir) / "checkpoints",
-            every_n_train_steps=training_config.save_steps,
+            every_n_train_steps=training_config.save_every_n_steps,
             save_top_k=3,
             save_last=True,
         ),
         GpuStatsMonitor(log_every_n_steps=training_config.system_metrics_every_n_steps),
     ]
+
+    # val_check_interval is in batches; convert from optimizer steps
+    val_check_interval = (
+        training_config.val_every_n_steps * training_config.gradient_accumulation_steps
+    )
 
     # Create trainer
     trainer = pl.Trainer(
@@ -76,8 +81,8 @@ def run(
         devices="auto",
         precision=training_config.precision,
         max_epochs=training_config.num_epochs,
-        val_check_interval=training_config.eval_steps,
-        log_every_n_steps=training_config.logging_steps,
+        val_check_interval=val_check_interval,
+        log_every_n_steps=training_config.system_metrics_every_n_steps,
         accumulate_grad_batches=training_config.gradient_accumulation_steps,
         callbacks=callbacks,
         logger=logger,
