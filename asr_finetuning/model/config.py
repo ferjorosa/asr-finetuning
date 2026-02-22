@@ -25,14 +25,21 @@ class ModelConfig:
         load_in_4bit: Whether to quantize to 4-bit (reduces memory usage).
     """
 
+    # Model
     model_name: str
+
+    # LoRA
     use_lora: bool = True
     lora_r: int = 64
     lora_alpha: int = 64
     lora_dropout: float = 0.0
     lora_target_modules: list[str] = field(default_factory=lambda: ["q_proj", "v_proj"])
+
+    # Whisper
     language: str | None = None  # None = auto-detect language
     task: str = "transcribe"
+
+    # Quantization
     load_in_4bit: bool = False
 
     def __post_init__(self) -> None:
@@ -41,14 +48,6 @@ class ModelConfig:
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "ModelConfig":
-        """Load config from YAML file.
-
-        Args:
-            path: Path to YAML config file.
-
-        Returns:
-            ModelConfig instance.
-        """
         with open(path) as f:
             config = yaml.safe_load(f)
         return cls(**config)
