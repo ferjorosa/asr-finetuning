@@ -48,34 +48,32 @@ class TrainingConfig:
     """
 
     # Precision
-    precision: Precision
+    precision: Precision = "bf16-mixed"
 
     # Optimizer
-    weight_decay: float
-    betas: tuple[float, float]
-    eps: float
-    grad_clip_norm: float
+    weight_decay: float = 0.01
+    betas: tuple[float, float] = (0.9, 0.95)
+    eps: float = 1e-8
+    grad_clip_norm: float = 1.0
 
     # Learning-rate schedule
-    learning_rate: float
-    warmup_steps: int
-    scheduler: Scheduler
-    min_lr: float
+    learning_rate: float = 1e-4
+    warmup_steps: int = 50
+    scheduler: Scheduler = "cosine"
+    min_lr: float = 1e-5
 
     # Batching
-    batch_size: int
-    gradient_accumulation_steps: int
-    num_epochs: int
+    batch_size: int = 8
+    gradient_accumulation_steps: int = 1
+    num_epochs: int = 1
 
     # Validation and logging
-    val_every_n_steps: int
-    system_metrics_every_n_steps: int
+    val_every_n_steps: int = 100
+    system_metrics_every_n_steps: int = 10
 
     # Checkpointing
-    save_every_n_steps: int
-    output_dir: str
-
-    # Optional
+    save_every_n_steps: int = 500
+    output_dir: str = "outputs"
     resume_from_checkpoint: str | None = None
     run_name: str | None = None
 
