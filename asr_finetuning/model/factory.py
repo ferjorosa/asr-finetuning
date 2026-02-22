@@ -35,8 +35,6 @@ def build_model(
         Tuple of (model, processor). If use_lora=True, only LoRA parameters
         are trainable.
     """
-    print(f"[build_model] dtype={dtype}")
-
     # -------------------------------------------------------------------------
     # 1. Load processor
     # -------------------------------------------------------------------------
@@ -62,8 +60,6 @@ def build_model(
         **model_kwargs,
     )
 
-    _log_dtype_summary(base_model, label="base model")
-
     # -------------------------------------------------------------------------
     # 3. Apply custom LoRA
     # -------------------------------------------------------------------------
@@ -87,10 +83,9 @@ def build_model(
     # -------------------------------------------------------------------------
     # 4. Gradient checkpointing
     # -------------------------------------------------------------------------
-    print(f"[build_model] gradient_checkpointing={model_config.gradient_checkpointing}")
     if model_config.gradient_checkpointing:
-        print("[build_model] Enabling gradient checkpointing!")
         model.gradient_checkpointing_enable()  # type: ignore[call-non-callable]
+        # Whisper loads in eval format by default
         model.train()  # type: ignore[call-non-callable]
 
     # -------------------------------------------------------------------------
@@ -103,32 +98,3 @@ def build_model(
     model.generation_config.forced_decoder_ids = None  # type: ignore[assignment]
 
     return model, processor
-
-
-# -----------------------------------------------------------------------------
-# Helpers
-# -----------------------------------------------------------------------------
-
-
-def _log_dtype_summary(model: torch.nn.Module, label: str = "model") -> None:
-    """Print a summary of parameter dtypes and memory usage."""
-    dtype_counts: dict[torch.dtype, int] = {}
-    dtype_bytes: dict[torch.dtype, int] = {}
-
-    for _, param in model.named_parameters():
-        dt = param.dtype
-        dtype_counts[dt] = dtype_counts.get(dt, 0) + param.numel()
-        dtype_bytes[dt] = dtype_bytes.get(dt, 0) + param.numel() * param.element_size()
-
-    total_mb = sum(dtype_bytes.values()) / (1024**2)
-    print(f"\n[build_model] === Dtype summary: {label} ===")
-    for dt, count in dtype_counts.items():
-        mb = dtype_bytes[dt] / (1024**2)
-        print(f"  {dt}: {count / 1e6:.2f}M params — {mb:.1f} MB")
-    print(f"  Total: {total_mb:.1f} MB")
-
-    trainable_params = [n for n, p in model.named_parameters() if p.requires_grad]
-    print(f"  Trainable params: {len(trainable_params)}")
-    if trainable_params:
-        print(f"  First 5 trainable: {trainable_params[:5]}")
-    print("[build_model] === End dtype summary ===\n")
